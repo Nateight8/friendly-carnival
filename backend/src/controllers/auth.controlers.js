@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "./../models/User.js";
+import { upsertStreamUser } from "../lib/stream.js";
 
 export async function signupControler(req, res) {
   const { fullName, email, password } = req.body;
@@ -26,10 +27,26 @@ export async function signupControler(req, res) {
     }
 
     // Create and save user
-    const newUser = new User({ fullName, email, password });
-    await newUser.save();
+    const newUser = await User.create({
+      fullName,
+      email,
+      password,
+    });
 
-    // Generate token synchronously
+    try {
+      // Upsert user in Stream - make sure to pass the user ID as a string
+      await upsertStreamUser({
+        id: newUser._id.toString(), // This is the key part - ensure ID is properly stringified
+        name: newUser.fullName,
+        image: "https://example.com/default-avatar.png", // Replace with real default avatar if needed
+      });
+    } catch (error) {
+      console.error("Error upserting Stream user:", error);
+      // Continue the signup process even if Stream fails
+      // You may want to implement a retry mechanism or queue for Stream user creation
+    }
+
+    // Generate token
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -59,7 +76,6 @@ export async function signinControler(req, res) {
 
     // Check if user exists
     const user = await User.findOne({ email });
-
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -70,7 +86,7 @@ export async function signinControler(req, res) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Generate token synchronously
+    // Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -80,7 +96,7 @@ export async function signinControler(req, res) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({ success: true, user, token });
@@ -90,4 +106,16 @@ export async function signinControler(req, res) {
   }
 }
 
-export async function signOutControler(req, res) {}
+export async function signOutControler(req, res) {
+  try {
+    res.clearCookie("jwt", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Error in signOut controller:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}

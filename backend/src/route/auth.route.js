@@ -7,7 +7,7 @@ import {
 
 const authRoute = express.Router();
 
-authRoute.get("/login", signinControler);
+authRoute.post("/login", signinControler);
 
 authRoute.post("/signup", signupControler);
 
