@@ -12,21 +12,6 @@ const streamClient = StreamChat.getInstance(apiKey, apiSecret);
 
 export const upsertStreamUser = async (userData) => {
   try {
-    const { id, ...userDataWithoutId } = userData;
-
-    if (!id) {
-      throw new Error("User ID is required when updating a user");
-    }
-
-    // Format user data correctly for Stream API
-    // The API expects { [userId]: userData } format
-    const formattedData = {
-      [id]: {
-        id, // Make sure id is included in the user data
-        ...userDataWithoutId,
-      },
-    };
-
     await streamClient.upsertUsers([userData]);
     return userData;
   } catch (error) {
@@ -38,6 +23,15 @@ export const upsertStreamUser = async (userData) => {
 export const generateStreamToken = (userId) => {
   if (!userId) {
     throw new Error("User ID is required to generate Stream token");
+  }
+
+  try {
+    const userIdStr = userId.toString();
+
+    return streamClient.createToken(userIdStr);
+  } catch (error) {
+    console.error("Error generating Stream token:", error);
+    throw error;
   }
 
   // Generate a token for the user

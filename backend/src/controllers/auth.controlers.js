@@ -33,18 +33,12 @@ export async function signupControler(req, res) {
       password,
     });
 
-    try {
-      // Upsert user in Stream - make sure to pass the user ID as a string
-      await upsertStreamUser({
-        id: newUser._id.toString(), // This is the key part - ensure ID is properly stringified
-        name: newUser.fullName,
-        image: "https://example.com/default-avatar.png", // Replace with real default avatar if needed
-      });
-    } catch (error) {
-      console.error("Error upserting Stream user:", error);
-      // Continue the signup process even if Stream fails
-      // You may want to implement a retry mechanism or queue for Stream user creation
-    }
+    // Upsert user in Stream - make sure to pass the user ID as a string
+    await upsertStreamUser({
+      id: newUser._id.toString(), // This is the key part - ensure ID is properly stringified
+      name: newUser.fullName,
+      image: "https://example.com/default-avatar.png", // Replace with real default avatar if needed
+    });
 
     // Generate token
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
@@ -116,6 +110,38 @@ export async function signOutControler(req, res) {
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("Error in signOut controller:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function onboardingControler(req, res) {
+  try {
+    const userId = req.user._id;
+    const { fullName, avatar, bio, username } = req.body;
+
+    if (!fullName || !username) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { ...req.body, bio, isOnboarder: true },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    // Upsert user in Stream
+    await upsertStreamUser({
+      id: updatedUser._id.toString(), // This is the key part - ensure ID is properly stringified
+      name: updatedUser.fullName,
+      image: "", // Replace with real default avatar if needed
+    });
+
+    return res.status(200).json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error("Error in onboarding controller:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 }

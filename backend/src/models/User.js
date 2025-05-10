@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema(
       minLength: 6,
     },
 
+    bio: {
+      type: String,
+      default: "",
+    },
+
     isOnboarder: {
       type: Boolean,
       default: false,
